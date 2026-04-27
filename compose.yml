@@ -1,0 +1,8 @@
+services:
+  gateway:
+    build: .
+    container_name: ble-gateway
+    restart: unless-stopped
+    environment:
+      - MQTT_HOST=$MQTT_HOST
+      - MQTT_PORT=$MQTT_PORT
