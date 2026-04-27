@@ -2,10 +2,8 @@ import asyncio
 import json
 import logging
 import os
-import struct
 
 from bleak import BleakClient
-from bleak.backends.characteristic import BleakGATTCharacteristic
 from paho.mqtt.client import MQTTMessage
 
 from ble_gateway import BLEGateway
@@ -24,20 +22,18 @@ async def main():
     ble = BLEGateway()
     mqtt = MQTTGateway(mqtt_host, mqtt_port)
 
-    def on_button(client: BleakClient, char: BleakGATTCharacteristic, data: bytes):
-        is_pressed: bool = struct.unpack(">B", data)[0] != 0
+    def on_button(client: BleakClient, is_pressed: bool):
         address: str = client.address
         topic: str = f"{address}/button"
         logger.info(f"{topic} -> {is_pressed}")
         mqtt.send(topic, b"1" if is_pressed else b"0")
-    
-    def on_ir(client: BleakClient, char: BleakGATTCharacteristic, data: bytes):
-        is_occupied: bool = struct.unpack(">B", data)[0] != 0
+
+    def on_ir(client: BleakClient, is_occupied: bool):
         address: str = client.address
         topic: str = f"{address}/ir"
         logger.info(f"{topic} -> {is_occupied}")
         mqtt.send(topic, b"1" if is_occupied else b"0")
-    
+
     def on_led(message: MQTTMessage):
         uuid: str = message.topic.split("/")[0]
         color: tuple[int, int, int]

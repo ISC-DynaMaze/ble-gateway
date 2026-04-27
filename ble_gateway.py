@@ -29,32 +29,35 @@ class BLEGateway:
 
     async def connect(self, device: BLEDevice):
         self.logger.info(f"Connecting to {device.address}")
-        async with BleakClient(device, self.on_disconnected) as client:
-            await client.start_notify(self.BUTTON_CHAR, partial(self.on_button, client))
-            await client.start_notify(self.IR_CHAR, partial(self.on_ir, client))
+        async with BleakClient(device, self._on_disconnected) as client:
+            await client.start_notify(
+                self.BUTTON_CHAR, partial(self._on_button, client)
+            )
+            await client.start_notify(self.IR_CHAR, partial(self._on_ir, client))
             self.clients[client.address] = client
+            self.on_connected(client)
             await asyncio.sleep(1e9)
 
-    def on_disconnected(self, client: BleakClient):
+    def _on_disconnected(self, client: BleakClient):
         address: str = client.address
         self.logger.info(f"Client {address} disconnected")
         if address in self.clients:
             self.clients.pop(address)
+        self.on_disconnected(client)
 
-    def on_button(
+    def _on_button(
         self, client: BleakClient, char: BleakGATTCharacteristic, data: bytes
     ) -> None:
-        self.logger.info(f"Received button update from {client.address}: {data}")
+        self.logger.debug(f"Received button update from {client.address}: {data}")
+        is_pressed: bool = struct.unpack(">?", data)[0]
+        self.on_button(client, is_pressed)
 
-    def on_ir(
+    def _on_ir(
         self, client: BleakClient, char: BleakGATTCharacteristic, data: bytes
     ) -> None:
         self.logger.info(f"Received IR update from {client.address}: {data}")
-        occupied: bool = struct.unpack(">B", data)[0] != 0
-        if occupied:
-            asyncio.create_task(self.set_led(client.address, (255, 0, 0)))
-        else:
-            asyncio.create_task(self.set_led(client.address, (0, 255, 0)))
+        is_occupied: bool = struct.unpack(">?", data)[0]
+        self.on_ir(client, is_occupied)
 
     async def set_led(self, address: str, color: tuple[int, int, int]) -> bool:
         client = self.clients.get(address)
@@ -69,3 +72,18 @@ class BLEGateway:
     async def run(self):
         devices: list[BLEDevice] = await self.scan()
         await asyncio.gather(*(self.connect(device) for device in devices))
+
+    # Overridable callbacks
+    def on_button(self, client: BleakClient, is_pressed: bool) -> None:
+        color: int = 200 if is_pressed else 100
+        asyncio.create_task(self.set_led(client.address, (color, color, color)))
+
+    def on_ir(self, client: BleakClient, is_occupied: bool) -> None:
+        color: tuple[int, int, int] = (255, 0, 0) if is_occupied else (0, 255, 0)
+        asyncio.create_task(self.set_led(client.address, color))
+
+    def on_connected(self, client: BleakClient):
+        pass
+
+    def on_disconnected(self, client: BleakClient):
+        pass
