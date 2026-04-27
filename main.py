@@ -56,6 +56,7 @@ async def main():
 
     mqtt.run()
     await ble.run()
+    await asyncio.Event().wait()
 
 
 if __name__ == "__main__":
