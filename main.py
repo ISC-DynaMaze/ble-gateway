@@ -22,6 +22,16 @@ async def main():
     ble = BLEGateway()
     mqtt = MQTTGateway(mqtt_host, mqtt_port)
 
+    def on_connected(client: BleakClient):
+        address: str = client.address
+        topic: str = f"{address}/status"
+        mqtt.send(topic, b"connected")
+
+    def on_disconnected(client: BleakClient):
+        address: str = client.address
+        topic: str = f"{address}/status"
+        mqtt.send(topic, b"disconnected")
+
     def on_button(client: BleakClient, is_pressed: bool):
         address: str = client.address
         topic: str = f"{address}/button"
@@ -49,6 +59,8 @@ async def main():
         logger.info(f"Setting led {uuid} to {color}")
         loop.call_soon_threadsafe(asyncio.ensure_future, ble.set_led(uuid, color))
 
+    ble.on_connected = on_connected
+    ble.on_disconnected = on_disconnected
     ble.on_button = on_button
     ble.on_ir = on_ir
 
