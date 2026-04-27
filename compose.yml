@@ -6,3 +6,8 @@ services:
     environment:
       - MQTT_HOST=$MQTT_HOST
       - MQTT_PORT=$MQTT_PORT
+    volumes:
+      - /var/run/dbus:/var/run/dbus
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW

@@ -5,9 +5,8 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 COPY pyproject.toml /app
-RUN pip install -e .
+RUN pip install .
 
 COPY . /app
-RUN pip install -e .
 
 CMD ["python3", "main.py"]
