@@ -34,8 +34,10 @@ class BLEGateway:
             await asyncio.sleep(1e9)
 
     def on_disconnected(self, client: BleakClient):
-        self.logger.info(f"Client {client.address} disconnected")
-        self.clients.pop(client.address)
+        address: str = client.address
+        self.logger.info(f"Client {address} disconnected")
+        if address in self.clients:
+            self.clients.pop(address)
 
     def on_button(
         self, client: BleakClient, char: BleakGATTCharacteristic, data: bytes
