@@ -20,9 +20,11 @@ class BLEGateway:
         self.logger = logging.getLogger("BLEGateway")
 
     async def scan(self, timeout=5) -> list[BLEDevice]:
+        self.logger.info(f"Discovering devices for {timeout} seconds")
         devices: list[BLEDevice] = await BleakScanner.discover(
             timeout=timeout, service_uuids=[self.SERVICES_UUID]
         )
+        self.logger.info(f"Found {len(devices)} devices")
         return devices
 
     async def connect(self, device: BLEDevice):

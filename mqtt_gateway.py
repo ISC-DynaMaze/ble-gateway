@@ -18,9 +18,11 @@ class MQTTGateway:
         self.listeners: dict[str, list[Callable[[mqtt.MQTTMessage], None]]] = {}
 
     def run(self):
+        self.logger.info(f"Connecting to {self.host}:{self.port}")
         self.mqttc.connect(self.host, self.port)
         self.mqttc.loop_start()
         for topic in self.listeners.keys():
+            self.logger.info(f"Subscribing to {topic}")
             self.mqttc.subscribe(topic)
 
     def on_connect(self, client, userdata, connect_flags, reason_code, properties):
