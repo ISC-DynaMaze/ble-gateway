@@ -36,6 +36,7 @@ class BLEGateway:
             await client.start_notify(self.IR_CHAR, partial(self._on_ir, client))
             self.clients[client.address] = client
             self.on_connected(client)
+            await asyncio.Event().wait()
 
     def _on_disconnected(self, client: BleakClient):
         address: str = client.address
