@@ -1,11 +1,14 @@
 import asyncio
-import json
 import logging
+import threading
+import time
+from functools import partial
 
 from bleak import BleakClient
 from paho.mqtt.client import MQTTMessage
 
 from ble_gateway import BLEGateway
+from models import LedCommand
 from mqtt_gateway import MQTTGateway
 
 
@@ -23,6 +26,8 @@ class Gateway:
         self.ble.on_ir = self.on_ir
 
         self.mqtt.add_listener("+/led", self.on_led)
+
+        self.blinks: dict[str, threading.Event] = {}
 
     async def run(self):
         self.loop = asyncio.get_running_loop()
@@ -53,17 +58,51 @@ class Gateway:
 
     def on_led(self, message: MQTTMessage):
         uuid: str = message.topic.split("/")[0]
-        color: tuple[int, int, int]
+        command: LedCommand
         try:
-            data = json.loads(message.payload)
-            assert isinstance(data, list)
-            assert len(data) == 3
-            assert all(map(lambda i: isinstance(i, int), data))
-            color = tuple(data)
+            command = LedCommand.model_validate_json(message.payload)
         except Exception as e:
             self.logger.error(e)
             return
-        self.logger.info(f"Setting led {uuid} to {color}")
-        self.loop.call_soon_threadsafe(
-            asyncio.ensure_future, self.ble.set_led(uuid, color)
+
+        self.logger.info(f"Setting led {uuid} to {command.color}")
+        if len(command.timings) == 0:
+            if uuid in self.blinks:
+                self.blinks[uuid].set()
+                self.blinks.pop(uuid)
+            self.loop.call_soon_threadsafe(
+                asyncio.ensure_future, self.ble.set_led(uuid, command.color)
+            )
+        else:
+            self.start_blink(uuid, command)
+
+    def start_blink(self, address: str, command: LedCommand):
+        if address in self.blinks:
+            self.blinks[address].set()
+        event = threading.Event()
+        self.blinks[address] = event
+        thread = threading.Thread(
+            target=partial(self.blink_loop, event, address, command)
         )
+        thread.start()
+
+    def blink_loop(self, event: threading.Event, address: str, command: LedCommand):
+        i: int = 0
+        while not event.is_set():
+            on_sec: float = command.timings[i]
+            off_sec: float = (
+                command.timings[i + 1] if i + 1 < len(command.timings) else on_sec
+            )
+            self.loop.call_soon_threadsafe(
+                asyncio.ensure_future, self.ble.set_led(address, command.color)
+            )
+            time.sleep(on_sec)
+            if event.is_set():
+                break
+            self.loop.call_soon_threadsafe(
+                asyncio.ensure_future, self.ble.set_led(address, command.off_color)
+            )
+            time.sleep(off_sec)
+            i += 2
+            if i >= len(command.timings):
+                i = 0
